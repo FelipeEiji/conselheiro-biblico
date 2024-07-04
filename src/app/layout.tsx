@@ -5,8 +5,8 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const scp = Source_Code_Pro({ subsets: ["latin"], variable: "--font-scp" });
 
 export const metadata = {
-  title: "Langchain ChatUI ⚡️",
-  description: "OpenAI ChatUI. Powered by Langchain, Nextjs and OpenAI.",
+  title: "Conselheiro Bíblico",
+  description: "Receba conselhos baseados em versículos da bíblia",
 };
 
 export default function RootLayout({

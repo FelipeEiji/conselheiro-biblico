@@ -37,23 +37,23 @@ function mapStoredMessagesToChatMessages(
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const messages = body.messages;
   const prompt = body.prompt;
 
   const encoder = new TextEncoder();
   const stream = new TransformStream();
   const writer = stream.writable.getWriter();
-  let counter = 0;
-  let string = "";
+  let responseJson = { advice: "", verses: [] };
+
   const chat = new ChatOpenAI({
-    streaming: true,
+    streaming: false,
     maxRetries: 1,
+    temperature: 0.4,
+    modelName: "gpt-4o",
     callbackManager: CallbackManager.fromHandlers({
-      handleLLMNewToken: async (token: string, runId, parentRunId) => {
+      handleLLMNewToken: async (token: string) => {
         await writer.ready;
-        string += token;
-        counter++;
-        await writer.write(encoder.encode(`${token}`));
+        responseJson.advice += token;
+        await writer.write(encoder.encode(token));
       },
       handleLLMEnd: async () => {
         await writer.ready;
@@ -66,34 +66,55 @@ export async function POST(req: Request) {
       },
     }),
   });
-  const lcChatMessageHistory = new ChatMessageHistory(
-    mapStoredMessagesToChatMessages(messages)
-  );
-  const memory = new BufferMemory({
-    chatHistory: lcChatMessageHistory,
-    returnMessages: true,
-    memoryKey: "history",
-  });
 
   const chatPrompt = ChatPromptTemplate.fromPromptMessages([
-    SystemMessagePromptTemplate.fromTemplate("You are a friendly assistant."),
-    new MessagesPlaceholder("history"),
+    SystemMessagePromptTemplate.fromTemplate(`
+      Você é um conselheiro bíblico. Você se comunica usando como referência algum versículo bíblico.
+      Desenvolva um conselho bom, baseando-se na bíblia e na pergunta do usuário.
+      Por favor, responda a pergunta do usuário com um conselho em plain text no formato JSON a seguir: {{
+        "advice": "Seu conselho aqui", 
+        "verses": [
+          {{
+            \"reference\": \"Referência do versículo\", 
+            \"text\": \"Texto do versículo\"
+          }}
+        ]
+      }}. 
+      Caso a pergunta não tenha ficado clara, peça ao usuário para reformulá-la e retorne algo parecido como
+      {{
+        "advice": "Por favor, reformule sua pergunta para que ela fique clara.", 
+        "verses": []
+      }}. 
+      Pergunta:
+    `),
     HumanMessagePromptTemplate.fromTemplate("{input}"),
   ]);
 
   const chain = new ConversationChain({
-    memory: memory,
+    memory: new BufferMemory({
+      chatHistory: new ChatMessageHistory(mapStoredMessagesToChatMessages([])),
+      returnMessages: true,
+      memoryKey: "history",
+    }),
     llm: chat,
     prompt: chatPrompt,
   });
 
-  chain.call({
+  const result = await chain.call({
     input: prompt,
   });
 
-  return new NextResponse(stream.readable, {
+  console.log(result)
+  try {
+    responseJson = JSON.parse(result.response.trim());
+  } catch (e) {
+    console.error("Failed to parse JSON response", e);
+    responseJson = { advice: result.response.trim(), verses: [] };
+  }
+
+  return new NextResponse(JSON.stringify(responseJson), {
     headers: {
-      "Content-Type": "text/event-stream",
+      "Content-Type": "application/json",
     },
   });
 }

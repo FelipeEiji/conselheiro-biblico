@@ -1,13 +1,19 @@
 "use client";
-import { Message } from "@/components/Message";
-import SendIcon from "@/components/SendIcon";
-import Spinner from "@/components/Spinner";
-import ScrollToBottom from "react-scroll-to-bottom";
 import { useEffect, useReducer, useRef, KeyboardEvent } from "react";
 import TextareaAutosize from "react-textarea-autosize";
+import ScrollToBottom from "react-scroll-to-bottom";
+import SendIcon from "@/components/SendIcon";
+import Spinner from "@/components/Spinner";
+import { Message } from "@/components/Message";
+import VerseCard from "@/components/VerseCard";
 
 interface Message {
   name: "human" | "ai" | "system";
+  text: string;
+}
+
+interface Verse {
+  reference: string;
   text: string;
 }
 
@@ -16,6 +22,7 @@ interface AppState {
   assistantThinking: boolean;
   isWriting: boolean;
   controller: AbortController | null;
+  verses: Verse[];
 }
 
 type AddMessage = {
@@ -23,9 +30,11 @@ type AddMessage = {
   payload: { prompt: string; controller: AbortController };
 };
 type UpdatePromptAnswer = { type: "updatePromptAnswer"; payload: string };
+type UpdateVerses = { type: "updateVerses"; payload: Verse[] };
+type ClearMessages = { type: "clearMessages" };
 type Abort = { type: "abort" };
 type Done = { type: "done" };
-type AppActions = AddMessage | UpdatePromptAnswer | Abort | Done;
+type AppActions = AddMessage | UpdatePromptAnswer | UpdateVerses | ClearMessages | Abort | Done;
 
 function reducer(state: AppState, action: AppActions): AppState {
   switch (action.type) {
@@ -33,26 +42,26 @@ function reducer(state: AppState, action: AppActions): AppState {
       return {
         ...state,
         assistantThinking: true,
-        messages: [
-          ...state.messages,
-          { name: "human", text: action.payload.prompt },
-          { name: "ai", text: "" },
-        ],
+        messages: [{ name: "human", text: action.payload.prompt }],
         controller: action.payload.controller,
       };
     case "updatePromptAnswer":
-      const conversationListCopy = [...state.messages];
-      const lastIndex = conversationListCopy.length - 1;
-      conversationListCopy[lastIndex] = {
-        ...conversationListCopy[lastIndex],
-        text: conversationListCopy[lastIndex].text + action.payload,
-      };
-
       return {
         ...state,
+        messages: [...state.messages, { name: "ai", text: action.payload }],
         assistantThinking: false,
         isWriting: true,
-        messages: conversationListCopy,
+      };
+    case "updateVerses":
+      return {
+        ...state,
+        verses: action.payload,
+      };
+    case "clearMessages":
+      return {
+        ...state,
+        messages: [],
+        verses: [],
       };
     case "abort":
       state.controller?.abort();
@@ -80,6 +89,7 @@ export default function Home() {
     assistantThinking: false,
     isWriting: false,
     controller: null,
+    verses: [],
   });
 
   const promptInput = useRef<HTMLTextAreaElement>(null);
@@ -90,33 +100,33 @@ export default function Home() {
       if (prompt !== "") {
         const controller = new AbortController();
         const signal = controller.signal;
+        dispatch({ type: "clearMessages" });
         dispatch({ type: "addMessage", payload: { prompt, controller } });
         promptInput.current.value = "";
 
-        const res = await fetch("http://localhost:3000/api", {
+        const res = await fetch("/api", {
           method: "POST",
-          body: JSON.stringify({ messages: state.messages, prompt }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ prompt }),
           signal: signal,
         });
-        const data = res.body;
-        if (!data) {
+        const data = await res.json();
+
+        if (data.error) {
+          console.error(data.error);
           return;
         }
 
-        const reader = data.getReader();
-        const decoder = new TextDecoder();
-        let done = false;
+        const { advice, verses } = data;
 
-        while (!done) {
-          const { value, done: doneReading } = await reader.read();
-          done = doneReading;
+        dispatch({ type: "updatePromptAnswer", payload: advice });
+        if (verses && verses.length > 0) {
+          dispatch({ type: "updateVerses", payload: verses });
+        }
 
-          const chunkValue = decoder.decode(value);
-          dispatch({ type: "updatePromptAnswer", payload: chunkValue });
-        }
-        if (done) {
-          dispatch({ type: "done" });
-        }
+        dispatch({ type: "done" });
       }
     }
   };
@@ -133,7 +143,6 @@ export default function Home() {
     dispatch({ type: "abort" });
   };
 
-  // focus input on page load
   useEffect(() => {
     if (promptInput && promptInput.current) {
       promptInput.current.focus();
@@ -141,16 +150,16 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex h-full relative flex-1">
-      <main className="relative h-full w-full transition-width flex flex-col overflow-hidden items-stretch max-w-3xl ml-auto mr-auto pb-12 font-default">
-        <div className="flex-1 overflow-hidden ">
+    <div className="flex h-full relative flex-1 bg-gray-100 px-3">
+      <main className="relative h-full w-full transition-width flex flex-col overflow-hidden items-stretch max-w-3xl ml-auto mr-auto pb-12 font-default rounded-lg ">
+        <div className="flex-1 overflow-hidden">
           <ScrollToBottom
-            className="relative h-full pb-14 pt-6"
+            className="relative h-full pb-14 pt-6 bg-gray-50"
             scrollViewClassName="h-full overflow-y-auto"
           >
             <div className="w-full transition-width flex flex-col items-stretch flex-1">
-              <div className="flex-1">
-                <div className="flex flex-col prose prose-lg prose-invert">
+              <div className="flex-1 ml-3">
+                <div className="flex flex-col prose prose-lg px-3">
                   {state.messages.map((message, i) => (
                     <Message
                       key={i}
@@ -159,24 +168,31 @@ export default function Home() {
                       thinking={state.assistantThinking}
                     />
                   ))}
+                  {state.verses.map((verse, i) => (
+                    <VerseCard
+                      key={i}
+                      verseReference={verse.reference}
+                      verseText={verse.text}
+                    />
+                  ))}
                 </div>
               </div>
             </div>
           </ScrollToBottom>
         </div>
-        <div className="absolute bottom-6  w-full px-1">
+        <div className="absolute bottom-6 w-full px-1">
           {(state.assistantThinking || state.isWriting) && (
             <div className="flex mx-auto justify-center mb-2">
               <button
                 type="button"
-                className="rounded bg-indigo-50 py-1 px-2 text-sm font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
+                className="rounded bg-blue-100 py-1 px-2 text-sm font-semibold text-blue-600 shadow-sm hover:bg-blue-200"
                 onClick={handleAbort}
               >
-                Stop generating
+                Interromper
               </button>
             </div>
           )}
-          <div className="relative flex flex-col w-full p-3  bg-gray-800 rounded-md shadow ring-1 ring-gray-200 dark:ring-gray-600 focus-within:ring-2 focus-within:ring-inset dark:focus-within:ring-indigo-600 focus-within:ring-indigo-600">
+          <div className="relative flex flex-col w-full p-3 bg-white rounded-md shadow ring-1 ring-gray-300 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-600">
             <label htmlFor="prompt" className="sr-only">
               Prompt
             </label>
@@ -187,9 +203,8 @@ export default function Home() {
               rows={1}
               maxRows={6}
               onKeyDown={handlePromptKey}
-              className="m-0 w-full resize-none border-0 bg-transparent  pr-7 focus:ring-0 focus-visible:ring-0 dark:bg-transparent text-gray-800 dark:text-gray-50 text-base"
-              placeholder="How can I build a chatbot in JavaScript?"
-              defaultValue="How can I build a chatbot in JavaScript?"
+              className="m-0 w-full resize-none border-0 bg-transparent pr-7 focus:ring-0 focus-visible:ring-0 text-gray-900 text-base"
+              placeholder="Peça um conselho"
             />
             <div className="absolute right-3 top-[calc(50%_-_10px)]">
               {state.assistantThinking || state.isWriting ? (

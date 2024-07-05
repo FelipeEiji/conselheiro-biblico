@@ -6,6 +6,12 @@ import SendIcon from "@/components/SendIcon";
 import Spinner from "@/components/Spinner";
 import { Message } from "@/components/Message";
 import VerseCard from "@/components/VerseCard";
+import { initializeApp } from "firebase/app";
+import { firebaseConfig } from "../config/firebase";
+import { getAnalytics } from "firebase/analytics";
+
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
 interface Message {
   name: "human" | "ai" | "system";
@@ -34,7 +40,13 @@ type UpdateVerses = { type: "updateVerses"; payload: Verse[] };
 type ClearMessages = { type: "clearMessages" };
 type Abort = { type: "abort" };
 type Done = { type: "done" };
-type AppActions = AddMessage | UpdatePromptAnswer | UpdateVerses | ClearMessages | Abort | Done;
+type AppActions =
+  | AddMessage
+  | UpdatePromptAnswer
+  | UpdateVerses
+  | ClearMessages
+  | Abort
+  | Done;
 
 function reducer(state: AppState, action: AppActions): AppState {
   switch (action.type) {

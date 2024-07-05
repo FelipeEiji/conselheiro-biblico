@@ -6,12 +6,9 @@ import SendIcon from "@/components/SendIcon";
 import Spinner from "@/components/Spinner";
 import { Message } from "@/components/Message";
 import VerseCard from "@/components/VerseCard";
-import { initializeApp } from "firebase/app";
-import { firebaseConfig } from "../config/firebase";
 import { getAnalytics } from "firebase/analytics";
-
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+import { initializeApp } from "firebase/app";
+import { firebaseConfig } from "../../firebase";
 
 interface Message {
   name: "human" | "ai" | "system";
@@ -156,6 +153,8 @@ export default function Home() {
   };
 
   useEffect(() => {
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
     if (promptInput && promptInput.current) {
       promptInput.current.focus();
     }

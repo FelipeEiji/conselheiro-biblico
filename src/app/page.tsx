@@ -232,7 +232,7 @@ export default function Home() {
             <p>
               Developed by{" "}
               <a
-                href="https://www.going2.com"
+                href="https://www.going2.com.br"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-500 hover:underline"

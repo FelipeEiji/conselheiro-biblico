@@ -228,6 +228,19 @@ export default function Home() {
               )}
             </div>
           </div>
+          <footer className="mt-auto py-1 text-center text-xs text-gray-400 bg-gray-100">
+            <p>
+              Developed by{" "}
+              <a
+                href="https://www.going2.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline"
+              >
+                Going2 Tech
+              </a>
+            </p>
+          </footer>
         </div>
       </main>
     </div>

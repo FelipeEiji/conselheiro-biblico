@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     streaming: false,
     maxRetries: 1,
     temperature: 0.4,
-    modelName: "gpt-4o",
+    modelName: "gpt-4o-mini",
     callbackManager: CallbackManager.fromHandlers({
       handleLLMNewToken: async (token: string) => {
         await writer.ready;
